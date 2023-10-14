@@ -29,11 +29,16 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
+import org.jacodb.api.JcArrayType
 import org.jacodb.api.JcClassOrInterface
+import org.jacodb.api.JcClassType
 import org.jacodb.api.JcClasspath
+import org.jacodb.api.JcPrimitiveType
+import org.jacodb.api.JcRefType
+import org.jacodb.api.JcType
+import org.jacodb.api.JcTypeVariable
 import org.jacodb.classtable.extractClassesTable
-import org.jacodb.impl.features.classpaths.UnknownClasses
-import org.jacodb.testing.allJars
+import org.jacodb.typesolver.table.Array
 import org.jacodb.typesolver.table.Class
 import org.jacodb.typesolver.table.ClassDeclaration
 import org.jacodb.typesolver.table.ClassesTable
@@ -43,18 +48,19 @@ import org.jacodb.typesolver.table.Intersect
 import org.jacodb.typesolver.table.JvmType
 import org.jacodb.typesolver.table.JvmWildcardPolarity
 import org.jacodb.typesolver.table.Null
+import org.jacodb.typesolver.table.OCanrenTypeQuery
 import org.jacodb.typesolver.table.PrimitiveType
 import org.jacodb.typesolver.table.Var
 import org.jacodb.typesolver.table.Wildcard
 import org.jacodb.typesolver.table.toJvmDeclaration
-import java.io.File
+import org.jacodb.typesolver.table.toJvmType
+import org.jacodb.typesolver.table.toPrimitiveType
 import java.lang.reflect.Type
 import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.div
 import kotlin.io.path.inputStream
 import kotlin.io.path.listDirectoryEntries
-import kotlin.io.path.outputStream
 import kotlin.io.path.writeText
 
 interface ClassesTableSerializer {
@@ -387,6 +393,44 @@ fun generateJCrashClassTables() {
             }
         }
     }
+}
+
+data class TypeSolverQuery(
+    val supertypes: Collection<JcType>,
+    val notSupertypes: Collection<JcType>,
+    val subtypes: Collection<JcType>,
+    val notSubtypes: Collection<JcType>,
+)
+
+fun dumpTypeSolverQueries(id: String, queries: List<TypeSolverQuery>) {
+    val serializedQueries = queries.mapNotNull { serializeQuery(it) }.toTypedArray()
+
+    val gson = createGsonBuilder().create()
+    val json = gson.toJson(serializedQueries)
+
+    val queriesPath = Path("C:\\Users\\vwx1181288\\IdeaProjects\\jacodb\\typeQueries\\queries") / "$id.json"
+    queriesPath.writeText(json)
+}
+
+fun serializeQuery(query: TypeSolverQuery): OCanrenTypeQuery? = try {
+    OCanrenTypeQuery(
+        null,
+        query.supertypes.map { serializeType(it) }.toTypedArray(),
+        query.subtypes.map { serializeType(it) }.toTypedArray(),
+        query.notSupertypes.map { serializeType(it) }.toTypedArray(),
+        query.notSubtypes.map { serializeType(it) }.toTypedArray()
+    )
+} catch (ex: Throwable) {
+    System.err.println("Failed: $ex")
+    null
+}
+
+private fun serializeType(type: JcType): JvmType = when (type) {
+    is JcClassType -> type.toJvmType(type.classpath, 0)
+    is JcArrayType -> Array(serializeType(type.elementType))
+    is JcTypeVariable -> type.toJvmType(-1, type.classpath, 0).let { it as Var }.upb
+    is JcPrimitiveType -> type.typeName.toPrimitiveType()
+    else -> error("unexpected type")
 }
 
 private fun dumpClassTable(resultPath: Path, crashPackPath: Path, crash: CrashPackCrash) {

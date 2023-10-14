@@ -87,7 +87,7 @@ fun JcClassOrInterface.toJvmDeclaration(classpath: JcClasspath): JvmDeclaration 
     }
 }
 
-private fun JcClassType.toJvmType(classpath: JcClasspath, depth: Int): JvmType {
+fun JcClassType.toJvmType(classpath: JcClasspath, depth: Int): JvmType {
     val typeParams = typeArguments.mapIndexed { index, param ->
         param.toJvmTypeArgument(index, classpath, depth + 1)
     }.toTypedArray()
@@ -248,7 +248,7 @@ private fun org.jacodb.api.JvmType.toJvmTypeArgument(index: Int, classpath: JcCl
 
 private fun JvmPrimitiveType.toJvmType(): PrimitiveType = ref.toPrimitiveType()
 
-private fun String.toPrimitiveType(): PrimitiveType = when (this) {
+fun String.toPrimitiveType(): PrimitiveType = when (this) {
     PredefinedPrimitives.Byte -> PrimitiveByte
     PredefinedPrimitives.Short -> PrimitiveShort
     PredefinedPrimitives.Int -> PrimitiveInt

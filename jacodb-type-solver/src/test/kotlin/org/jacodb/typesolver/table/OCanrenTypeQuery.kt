@@ -40,7 +40,7 @@ import kotlin.random.Random
 private typealias Types = Array<out JvmType>
 
 data class OCanrenTypeQuery(
-    val table: ClassesTable,
+    val table: ClassesTable?,
     @SerializedName("upper_bounds") val upperBounds: Types = emptyArray(),
     @SerializedName("lower_bounds") val lowerBounds: Types = emptyArray(),
     @SerializedName("neg_upper_bounds") val negUpperBounds: Types = emptyArray(),

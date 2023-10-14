@@ -24,3 +24,9 @@ dependencies {
     implementation(Libs.kotlinx_coroutines_core)
     implementation(Libs.kotlinx_serialization_json)
 }
+
+tasks.register<Jar>("test-jar") {
+    from(sourceSets.test.get().output)
+    from(sourceSets.main.get().output)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
