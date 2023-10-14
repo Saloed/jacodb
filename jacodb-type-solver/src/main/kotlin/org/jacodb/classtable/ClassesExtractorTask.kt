@@ -18,10 +18,12 @@ package org.jacodb.classtable
 
 import kotlinx.coroutines.runBlocking
 import org.jacodb.api.*
+import org.jacodb.impl.features.classpaths.UnknownClasses
 import org.jacodb.impl.jacodb
+import java.io.Closeable
 import java.io.File
 
-object ClassesExtractorTask : JcClassProcessingTask {
+class ClassesExtractorTask : JcClassProcessingTask {
     private val _classes: MutableList<JcClassOrInterface> = mutableListOf()
 
     val classes: List<JcClassOrInterface> = _classes
@@ -33,8 +35,14 @@ object ClassesExtractorTask : JcClassProcessingTask {
 
 data class ClassesDatabase(
     val classes: List<JcClassOrInterface>,
-    val classpath: JcClasspath
-)
+    val classpath: JcClasspath,
+    val db: JcDatabase,
+) : Closeable {
+    override fun close() {
+        classpath.close()
+        db.close()
+    }
+}
 
 private suspend fun extractClassesTableAsync(
     classPath: List<File>,
@@ -45,10 +53,11 @@ private suspend fun extractClassesTableAsync(
         loadByteCode(classPath)
         installFeatures(*features)
     }
-    val classpath = db.classpath(classPath)
-    classpath.execute(ClassesExtractorTask)
+    val classpath = db.classpath(classPath, listOf(UnknownClasses))
+    val extractor = ClassesExtractorTask()
+    classpath.execute(extractor)
 
-    return ClassesDatabase(ClassesExtractorTask.classes, classpath)
+    return ClassesDatabase(extractor.classes, classpath, db)
 }
 
 fun extractClassesTable(

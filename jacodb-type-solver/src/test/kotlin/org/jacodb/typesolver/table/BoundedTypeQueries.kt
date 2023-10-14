@@ -78,7 +78,7 @@ class BoundedTypeQueries : AbstractTypeQuery() {
 
     private fun artificialWildcardExtends(wildcardClass: JcClassOrInterface) {
         val wildcardType = wildcardClass.toType()
-        val wildcard = Wildcard(JvmWildcardPolarity.Extends to wildcardClass.toJvmType(jcClasspath))
+        val wildcard = Wildcard(JvmWildcardPolarity.Extends to wildcardClass.toJvmType(jcClasspath, 0))
         val typeArguments = arrayOf(wildcard)
 
         fun JcClassOrInterface.toJvmTypeWithTypeArguments(): JvmType {
@@ -108,7 +108,7 @@ class BoundedTypeQueries : AbstractTypeQuery() {
                         .isAssignable(wildcardType)
                 }
                 .sortedBy { it.name }
-                .map { it.toJvmType(jcClasspath) }
+                .map { it.toJvmType(jcClasspath, 0) }
                 .toList()
 
             val query = SingleTypeQueryWithUpperBound(upperBound, expectedAnswers.size, expectedAnswers)

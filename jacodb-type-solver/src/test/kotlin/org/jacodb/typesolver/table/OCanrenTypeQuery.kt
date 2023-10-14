@@ -116,7 +116,7 @@ fun generateUpperBounds(type: JcClassOrInterface, hierarchy: HierarchyExtension,
 
     return ancestors
         .takeRandomElements()
-        .map { it.toJvmType(jcClasspath) }
+        .map { it.toJvmType(jcClasspath, 0) }
         .toTypedArray()
 }
 
@@ -127,7 +127,7 @@ fun generateLowerBounds(
 ): Types {
     val inheritors = hierarchy.findSubClasses(type, allHierarchy = true).toSet()
 
-    return inheritors.map { it.toJvmType(jcClasspath) }.toTypedArray()
+    return inheritors.map { it.toJvmType(jcClasspath, 0) }.toTypedArray()
 }
 
 fun generateNegUpperBounds(type: JcClassOrInterface, hierarchy: HierarchyExtension, jcClasspath: JcClasspath): Types =

@@ -78,49 +78,54 @@ fun JcClassOrInterface.toJvmDeclaration(classpath: JcClasspath): JvmDeclaration 
 //    }
 
     val type = toType()
-    val typeParams = typeParameters.mapIndexed { index, param -> param.toJvmType(index, classpath) }.toTypedArray()
-    val supers = type.interfaces.map { it.toJvmType(classpath) }.toTypedArray()
+    val typeParams = typeParameters.mapIndexed { index, param -> param.toJvmType(index, classpath, depth = 0) }.toTypedArray()
+    val supers = type.interfaces.map { it.toJvmType(classpath, depth = 0) }.toTypedArray()
 
     return when {
         isInterface -> InterfaceDeclaration(name, typeParams, supers)
-        else -> ClassDeclaration(name, typeParams, type.superType?.toJvmType(classpath), supers)
+        else -> ClassDeclaration(name, typeParams, type.superType?.toJvmType(classpath, depth = 0), supers)
     }
 }
 
-private fun JcClassType.toJvmType(classpath: JcClasspath): JvmType {
+private fun JcClassType.toJvmType(classpath: JcClasspath, depth: Int): JvmType {
     val typeParams = typeArguments.mapIndexed { index, param ->
-        param.toJvmTypeArgument(index, classpath)
+        param.toJvmTypeArgument(index, classpath, depth + 1)
     }.toTypedArray()
 
     val name = jcClass.name
     return if (isInterface) Interface(name, typeParams) else Class(name, typeParams)
 }
 
-private fun JcType.toJvmType(index: Int, classpath: JcClasspath): JvmType = when (this) {
-    is JcRefType -> toJvmType(index, classpath)
+private fun JcType.toJvmType(index: Int, classpath: JcClasspath, depth: Int): JvmType = when (this) {
+    is JcRefType -> toJvmType(index, classpath, depth + 1)
     is JcPrimitiveType -> typeName.toPrimitiveType()
     else -> error("Unknown JcType $this")
 }
 
-private fun JcRefType.toJvmType(index: Int, classpath: JcClasspath): JvmType = when (this) {
-    is JcArrayType -> Array(elementType.toJvmType(index, classpath))
-    is JcClassType -> toJvmType(classpath)
-    is JcTypeVariable -> toJvmType(index, classpath)
-    is JcBoundedWildcard -> error("Unexpected $this")
-    is JcUnboundWildcard -> error("Unexpected $this")
-    else -> error("Unknown ref type $this")
+private fun JcRefType.toJvmType(index: Int, classpath: JcClasspath, depth: Int): JvmType {
+    if (depth > 50) {
+        return UnboundWildcardAsJvmType
+    }
+    return when (this) {
+        is JcArrayType -> Array(elementType.toJvmType(index, classpath, depth + 1))
+        is JcClassType -> toJvmType(classpath, depth + 1)
+        is JcTypeVariable -> toJvmType(index, classpath, depth + 1)
+        is JcBoundedWildcard -> error("Unexpected $this")
+        is JcUnboundWildcard -> error("Unexpected $this")
+        else -> error("Unknown ref type $this")
+    }
 }
 
-private fun JcRefType.toJvmTypeArgument(index: Int, classpath: JcClasspath): JvmTypeArgument = when (this) {
-    is JcArrayType -> Array(elementType.toJvmType(index, classpath)).toJvmTypeArgument()
-    is JcClassType -> toJvmType(classpath).toJvmTypeArgument()
-    is JcTypeVariable -> toJvmType(index, classpath).toJvmTypeArgument()
-    is JcBoundedWildcard -> toJvmTypeArgument(index, classpath)
+private fun JcRefType.toJvmTypeArgument(index: Int, classpath: JcClasspath, depth: Int): JvmTypeArgument = when (this) {
+    is JcArrayType -> Array(elementType.toJvmType(index, classpath, depth + 1)).toJvmTypeArgument()
+    is JcClassType -> toJvmType(classpath, depth + 1).toJvmTypeArgument()
+    is JcTypeVariable -> toJvmType(index, classpath, depth + 1).toJvmTypeArgument()
+    is JcBoundedWildcard -> toJvmTypeArgument(index, classpath, depth + 1)
     is JcUnboundWildcard -> toJvmTypeArgument(index, classpath)
     else -> error("Unknown ref type $this")
 }
 
-private fun JcBoundedWildcard.toJvmTypeArgument(index: Int, classpath: JcClasspath): JvmTypeArgument {
+private fun JcBoundedWildcard.toJvmTypeArgument(index: Int, classpath: JcClasspath, depth: Int): JvmTypeArgument {
     require(lowerBounds.isEmpty() != upperBounds.isEmpty())
 
     if (lowerBounds.isNotEmpty()) {
@@ -128,45 +133,47 @@ private fun JcBoundedWildcard.toJvmTypeArgument(index: Int, classpath: JcClasspa
             TODO()
         }
 
-        return Wildcard(Super to lowerBounds.single().toJvmType(index, classpath))
+        return Wildcard(Super to lowerBounds.single().toJvmType(index, classpath, depth + 1))
     }
 
     require(upperBounds.size == 1) {
         TODO()
     }
-    return Wildcard(Extends to upperBounds.single().toJvmType(index, classpath))
+    return Wildcard(Extends to upperBounds.single().toJvmType(index, classpath, depth + 1))
 }
 
 private fun JcUnboundWildcard.toJvmTypeArgument(index: Int, classpath: JcClasspath): JvmTypeArgument = Wildcard(null)
 
-fun JcTypeVariable.toJvmType(index: Int, classpath: JcClasspath): JvmType {
+fun JcTypeVariable.toJvmType(index: Int, classpath: JcClasspath, depth: Int): JvmType {
     val typeBounds = bounds
 
     val upperBound = when {
-        typeBounds.isEmpty() -> classpath.objectClass.toJvmType(classpath)
-        typeBounds.size == 1 -> typeBounds.single().toJvmType(index, classpath)
-        else -> Intersect(typeBounds.map { it.toJvmType(index, classpath) }.toTypedArray())
+        typeBounds.isEmpty() -> classpath.objectClass.toJvmType(classpath, depth)
+        typeBounds.size == 1 -> typeBounds.single().toJvmType(index, classpath, depth + 1)
+        else -> Intersect(typeBounds.map { it.toJvmType(index, classpath, depth + 1) }.toTypedArray())
     }
 
     return Var(symbol, index, upperBound, null)
 }
 
-fun JvmTypeParameterDeclaration.toJvmType(index: Int, classpath: JcClasspath): JvmType {
+fun JvmTypeParameterDeclaration.toJvmType(index: Int, classpath: JcClasspath, depth: Int): JvmType {
     val typeBounds = bounds
 
     val upperBound = when {
-        typeBounds.isNullOrEmpty() -> classpath.objectClass.toJvmType(classpath)
-        typeBounds.size == 1 -> typeBounds.single().toJvmType(classpath, index)
-        else -> Intersect(typeBounds.map { it.toJvmType(classpath, index) }.toTypedArray())
+        typeBounds.isNullOrEmpty() -> classpath.objectClass.toJvmType(classpath, depth + 1)
+        typeBounds.size == 1 -> typeBounds.single().toJvmType(depth + 1, classpath, index)
+        else -> Intersect(typeBounds.map { it.toJvmType(depth + 1, classpath, index) }.toTypedArray())
     }
 
     return Var(symbol, index, upperBound, null)
 }
 
-fun JcClassOrInterface.toJvmType(classpath: JcClasspath): JvmType {
+fun JcClassOrInterface.toJvmType(classpath: JcClasspath, depth: Int): JvmType {
 //    val typeParams = typeParameters.map { it.toJvmTypeArgument(classpath) }.toTypedArray()
 //    val typeParams = typeParameters.mapIndexed { index, param -> param.toJvmType(index, classpath) }.toTypedArray()
-    val typeParams = toType().typeArguments.mapIndexed { index, param -> param.toJvmTypeArgument(index, classpath) }.toTypedArray()
+    val typeParams = toType().typeArguments.mapIndexed { index, param ->
+        param.toJvmTypeArgument(index, classpath, depth + 1)
+    }.toTypedArray()
 
     return if (isInterface) Interface(name, typeParams) else Class(name, typeParams)
 }
@@ -199,30 +206,45 @@ fun JcClassOrInterface.toJvmType(classpath: JcClasspath): JvmType {
     JvmUnboundWildcard -> Wildcard(null)
 }*/
 
-private fun org.jacodb.impl.types.signature.JvmType.toJvmType(classpath: JcClasspath, index: Int = 0): JvmType = when (this) {
-    is JvmArrayType -> Array(elementType.toJvmType(classpath))
-    is JvmClassRefType -> classpath.findClass(name).toJvmType(classpath)
+private fun org.jacodb.api.JvmType.toJvmType(depth: Int, classpath: JcClasspath, index: Int = 0): JvmType {
+    if (depth > 50) {
+        return UnboundWildcardAsJvmType
+    }
+    return when (this) {
+        is JvmArrayType -> Array(elementType.toJvmType(depth + 1, classpath))
+        is JvmClassRefType -> classpath.findClass(name).toJvmType(classpath, depth + 1)
 //    is JvmParameterizedType -> Class(name, parameterTypes.map { it.toJvmTypeArgument(classpath) }.toTypedArray())
-    is JvmParameterizedType -> Class(name, parameterTypes.mapIndexed { index, param -> param.toJvmTypeArgument(index, classpath) }.toTypedArray())
-    is JvmTypeVariable -> toJvmType(index /*It is already mentioned variable with an unknown index*/, classpath)
-    is JvmParameterizedType.JvmNestedType -> Class(name, parameterTypes.mapIndexed { index, param -> param.toJvmTypeArgument(index, classpath) }.toTypedArray())
-    is JvmPrimitiveType -> toJvmType()
-    is JvmBoundWildcard.JvmUpperBoundWildcard -> toJvmType(index, classpath)
-    is JvmBoundWildcard.JvmLowerBoundWildcard -> toJvmType(index, classpath)
-    JvmUnboundWildcard -> UnboundWildcardAsJvmType
+        is JvmParameterizedType -> Class(name, parameterTypes.mapIndexed { index, param ->
+            param.toJvmTypeArgument(index, classpath, depth + 1)
+        }.toTypedArray())
+
+        is JvmTypeVariable -> toJvmType(index /*It is already mentioned variable with an unknown index*/, classpath, depth + 1)
+        is JvmParameterizedType.JvmNestedType -> Class(name, parameterTypes.mapIndexed { index, param ->
+            param.toJvmTypeArgument(index, classpath, depth + 1)
+        }.toTypedArray())
+
+        is JvmPrimitiveType -> toJvmType()
+        is JvmBoundWildcard.JvmUpperBoundWildcard -> toJvmType(index, classpath, depth + 1)
+        is JvmBoundWildcard.JvmLowerBoundWildcard -> toJvmType(index, classpath, depth + 1)
+        JvmUnboundWildcard -> UnboundWildcardAsJvmType
+        else -> TODO("")
+    }
 }
 
-private fun org.jacodb.impl.types.signature.JvmType.toJvmTypeArgument(index: Int, classpath: JcClasspath) = when (this) {
-    is JvmArrayType,
-    is JvmClassRefType,
-    is JvmParameterizedType.JvmNestedType,
-    is JvmParameterizedType,
-    is JvmPrimitiveType,
-    is JvmTypeVariable -> toJvmType(classpath, index).toJvmTypeArgument()
-    is JvmBoundWildcard.JvmLowerBoundWildcard -> toJvmTypeArgument(index, classpath)
-    is JvmBoundWildcard.JvmUpperBoundWildcard -> toJvmTypeArgument(index, classpath)
-    JvmUnboundWildcard -> Wildcard(null)
-}
+private fun org.jacodb.api.JvmType.toJvmTypeArgument(index: Int, classpath: JcClasspath, depth: Int): JvmTypeArgument =
+    when (this) {
+        is JvmArrayType,
+        is JvmClassRefType,
+        is JvmParameterizedType.JvmNestedType,
+        is JvmParameterizedType,
+        is JvmPrimitiveType,
+        is JvmTypeVariable -> toJvmType(depth + 1, classpath, index).toJvmTypeArgument()
+
+        is JvmBoundWildcard.JvmLowerBoundWildcard -> toJvmTypeArgument(index, classpath, depth + 1)
+        is JvmBoundWildcard.JvmUpperBoundWildcard -> toJvmTypeArgument(index, classpath, depth + 1)
+        JvmUnboundWildcard -> Wildcard(null)
+        else -> TODO("")
+    }
 
 private fun JvmPrimitiveType.toJvmType(): PrimitiveType = ref.toPrimitiveType()
 
@@ -239,16 +261,16 @@ private fun String.toPrimitiveType(): PrimitiveType = when (this) {
     else -> error("Unknown primitive type $this")
 }
 
-private fun JvmBoundWildcard.JvmLowerBoundWildcard.toJvmTypeArgument(index: Int, classpath: JcClasspath): JvmTypeArgument {
+private fun JvmBoundWildcard.JvmLowerBoundWildcard.toJvmTypeArgument(index: Int, classpath: JcClasspath, depth: Int): JvmTypeArgument {
     require(index >= 0)
 
-    return Wildcard(Super to bound.toJvmType(classpath, index))
+    return Wildcard(Super to bound.toJvmType(depth + 1, classpath, index))
 }
 
-private fun JvmBoundWildcard.JvmUpperBoundWildcard.toJvmTypeArgument(index: Int, classpath: JcClasspath): JvmTypeArgument {
+private fun JvmBoundWildcard.JvmUpperBoundWildcard.toJvmTypeArgument(index: Int, classpath: JcClasspath, depth: Int): JvmTypeArgument {
     require(index >= 0)
 
-    return Wildcard(Extends to bound.toJvmType(classpath, index))
+    return Wildcard(Extends to bound.toJvmType(depth + 1, classpath, index))
 }
 
 private fun JvmBoundWildcard.JvmLowerBoundWildcard.toJvmType(index: Int, classpath: JcClasspath): JvmType {
@@ -258,13 +280,14 @@ private fun JvmBoundWildcard.JvmLowerBoundWildcard.toJvmType(index: Int, classpa
     TODO()
 }
 
-private fun JvmBoundWildcard.JvmUpperBoundWildcard.toJvmType(index: Int, classpath: JcClasspath): JvmType {
+private fun JvmBoundWildcard.JvmUpperBoundWildcard.toJvmType(index: Int, classpath: JcClasspath, depth: Int): JvmType {
     require(index >= 0)
 
-    return bound.toJvmType(classpath, index)
+    return bound.toJvmType(depth + 1, classpath, index)
 //    return Wildcard(Extends to bound.toJvmType(classpath, index))
 }
 
-private fun JvmTypeVariable.toJvmType(index: Int, classpath: JcClasspath): JvmType {
-    return declaration?.toJvmType(index, classpath) ?: Var(symbol, index, classpath.objectClass.toJvmType(classpath), null)
+private fun JvmTypeVariable.toJvmType(index: Int, classpath: JcClasspath, depth: Int): JvmType {
+    return declaration?.toJvmType(index, classpath, depth + 1)
+        ?: Var(symbol, index, classpath.objectClass.toJvmType(classpath, depth + 1), null)
 }

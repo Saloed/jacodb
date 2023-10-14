@@ -1,3 +1,7 @@
+plugins {
+    kotlin("plugin.serialization")
+}
+
 repositories {
     maven {
         url = uri("https://jitpack.io")
@@ -16,4 +20,7 @@ dependencies {
 
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
     testImplementation("com.google.code.gson:gson:2.8.9")
+
+    implementation(Libs.kotlinx_coroutines_core)
+    implementation(Libs.kotlinx_serialization_json)
 }

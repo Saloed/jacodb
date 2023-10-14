@@ -16,114 +16,114 @@
 
 package org.jacodb.typesolver.table
 
-import com.google.gson.Gson
-import kotlinx.coroutines.runBlocking
-import org.jacodb.api.JcClassOrInterface
-import org.jacodb.api.JcClasspath
-import org.jacodb.classtable.extractClassesTable
-import org.jacodb.impl.features.HierarchyExtensionImpl
-import org.jacodb.impl.features.hierarchyExt
-import org.jacodb.typesolver.createGsonBuilder
-import org.junit.jupiter.api.Test
-import kotlin.Array
-import kotlin.io.path.Path
-
-// TODO use InMemoryHierarchy feature?
-class UnboundedTypeQueries : AbstractTypeQuery() {
-    protected val configuration: Configuration = Configuration(ClasspathConfiguration.ALL_JARS)
-    protected val gson: Gson = createGsonBuilder().create()
-    protected val upperBoundNames: Array<String> = arrayOf(
-        "java.lang.Iterable",
-        "java.util.Collection",
-        "java.util.List",
-        "java.util.Set",
-        "java.util.HashSet",
-        "java.util.SortedSet",
-        "java.util.NavigableSet"
-    )
-
-    protected val classes: List<JcClassOrInterface>
-    protected val jcClasspath: JcClasspath
-    protected val hierarchy: HierarchyExtensionImpl
-
-    init {
-        with(configuration) {
-            val classesWithClasspath = extractClassesTable(classpathConfiguration.toClasspath)
-            classes = classesWithClasspath.classes
-            jcClasspath = classesWithClasspath.classpath
-        }
-
-        hierarchy = runBlocking { jcClasspath.hierarchyExt() }
-    }
-
-    @Test
-    fun writeArtificialUnboundedTypeQueries() {
-        for (upperBoundName in upperBoundNames) {
-            val upperBound = classes.single { it.name == upperBoundName }.toJvmType(jcClasspath)
-            val expectedAnswers = hierarchy
-                .findSubClassesIncluding(upperBoundName, allHierarchy = true)
-                .sortedBy { it.name }
-                .map { it.toJvmType(jcClasspath) }
-                .toList()
-
-            val query = SingleTypeQueryWithUpperBound(upperBound, expectedAnswers.size, expectedAnswers)
-            val json = gson.toJson(query)
-
-            Path("only_type_queries", "single_queries", "unbound_type_variables").let {
-                it.toFile().mkdirs()
-
-                Path(it.toString(), "$upperBoundName.json").toFile().bufferedWriter().use { writer ->
-                    writer.write(json)
-                }
-            }
-        }
-    }
-
-    @Test
-    fun foo() {
-        // TODO soot is missed in the classpath
-        val loop = classes.filter { it.name == "soot.toolkits.graph.LoopNestTree" }
-        println(loop.joinToString())
-
-        println(jcClasspath.findClassOrNull("soot.toolkits.graph.LoopNestTree"))
-    }
-
-    @Test
-    fun writeArtificialSequentialUnboundedTypeQueries() {
-        val upperBoundGroups = mapOf(
-            arrayOf("java.lang.Iterable", "java.util.Collection", "java.util.List", "java.util.ArrayList") to hierarchy.findSubClassesIncluding("java.util.ArrayList", allHierarchy = true).toSortedList(),
-            arrayOf("java.lang.Iterable", "java.util.Collection", "java.util.List") to hierarchy.findSubClassesIncluding("java.util.List", allHierarchy = true).toSortedList(),
-            arrayOf("java.lang.Iterable", "java.util.List") to hierarchy.findSubClassesIncluding("java.util.List", allHierarchy = true).toSortedList(),
-            arrayOf("java.util.Set", "java.lang.Iterable") to hierarchy.findSubClassesIncluding("java.util.Set", allHierarchy = true).toSortedList(),
-            arrayOf("java.lang.Iterable", "java.util.Collection", "java.util.Set", "java.util.SortedSet", "java.util.NavigableSet", "java.util.TreeSet") to hierarchy.findSubClassesIncluding("java.util.TreeSet", allHierarchy = true).toSortedList(),
-            arrayOf("java.lang.Iterable", "java.util.Collection", "java.util.Set", "java.util.NavigableSet", "java.util.SortedSet") to hierarchy.findSubClassesIncluding("java.util.NavigableSet", allHierarchy = true).toSortedList(),
-            arrayOf("java.lang.Iterable", "java.util.Collection", "java.util.Set", "java.util.NavigableSet") to hierarchy.findSubClassesIncluding("java.util.NavigableSet", allHierarchy = true).toSortedList(),
-            arrayOf("java.util.Set", "java.util.List") to run {
-                val setSubclasses = hierarchy.findSubClassesIncluding("java.util.Set", allHierarchy = true).toSet()
-                val listSubclasses = hierarchy.findSubClassesIncluding("java.util.List", allHierarchy = true).toSet()
-
-                setSubclasses.filter { it in listSubclasses }
-            }.toSortedList(),
-        )
-
-        for ((group, answers) in upperBoundGroups) {
-            val testName = group.joinToString(separator = "_", postfix = ".json")
-            val bounds = group.map { jcClasspath.findClassOrNull(it)!!.toJvmType(jcClasspath) }
-
-            val query = SequentialTypeQueryWithUpperBound(bounds, answers.size, answers.map { it.toJvmType(jcClasspath) })
-
-            val json = gson.toJson(query)
-
-            Path("only_type_queries", "sequential_queries", "unbound_type_variables").let {
-                it.toFile().mkdirs()
-
-                Path(it.toString(), testName).toFile().bufferedWriter().use { writer ->
-                    writer.write(json)
-                }
-            }
-        }
-    }
-}
-
-private fun Sequence<JcClassOrInterface>.toSortedList(): List<JcClassOrInterface> = sortedBy { it.name }.toList()
-private fun Iterable<JcClassOrInterface>.toSortedList(): List<JcClassOrInterface> = sortedBy { it.name }.toList()
+//import com.google.gson.Gson
+//import kotlinx.coroutines.runBlocking
+//import org.jacodb.api.JcClassOrInterface
+//import org.jacodb.api.JcClasspath
+//import org.jacodb.classtable.extractClassesTable
+//import org.jacodb.impl.features.HierarchyExtensionImpl
+//import org.jacodb.impl.features.hierarchyExt
+//import org.jacodb.typesolver.createGsonBuilder
+//import org.junit.jupiter.api.Test
+//import kotlin.Array
+//import kotlin.io.path.Path
+//
+//// TODO use InMemoryHierarchy feature?
+//class UnboundedTypeQueries : AbstractTypeQuery() {
+//    protected val configuration: Configuration = Configuration(ClasspathConfiguration.ALL_JARS)
+//    protected val gson: Gson = createGsonBuilder().create()
+//    protected val upperBoundNames: Array<String> = arrayOf(
+//        "java.lang.Iterable",
+//        "java.util.Collection",
+//        "java.util.List",
+//        "java.util.Set",
+//        "java.util.HashSet",
+//        "java.util.SortedSet",
+//        "java.util.NavigableSet"
+//    )
+//
+//    protected val classes: List<JcClassOrInterface>
+//    protected val jcClasspath: JcClasspath
+//    protected val hierarchy: HierarchyExtensionImpl
+//
+//    init {
+//        with(configuration) {
+//            val classesWithClasspath = extractClassesTable(classpathConfiguration.toClasspath)
+//            classes = classesWithClasspath.classes
+//            jcClasspath = classesWithClasspath.classpath
+//        }
+//
+//        hierarchy = runBlocking { jcClasspath.hierarchyExt() }
+//    }
+//
+//    @Test
+//    fun writeArtificialUnboundedTypeQueries() {
+//        for (upperBoundName in upperBoundNames) {
+//            val upperBound = classes.single { it.name == upperBoundName }.toJvmType(jcClasspath)
+//            val expectedAnswers = hierarchy
+//                .findSubClassesIncluding(upperBoundName, allHierarchy = true)
+//                .sortedBy { it.name }
+//                .map { it.toJvmType(jcClasspath) }
+//                .toList()
+//
+//            val query = SingleTypeQueryWithUpperBound(upperBound, expectedAnswers.size, expectedAnswers)
+//            val json = gson.toJson(query)
+//
+//            Path("only_type_queries", "single_queries", "unbound_type_variables").let {
+//                it.toFile().mkdirs()
+//
+//                Path(it.toString(), "$upperBoundName.json").toFile().bufferedWriter().use { writer ->
+//                    writer.write(json)
+//                }
+//            }
+//        }
+//    }
+//
+//    @Test
+//    fun foo() {
+//        // TODO soot is missed in the classpath
+//        val loop = classes.filter { it.name == "soot.toolkits.graph.LoopNestTree" }
+//        println(loop.joinToString())
+//
+//        println(jcClasspath.findClassOrNull("soot.toolkits.graph.LoopNestTree"))
+//    }
+//
+//    @Test
+//    fun writeArtificialSequentialUnboundedTypeQueries() {
+//        val upperBoundGroups = mapOf(
+//            arrayOf("java.lang.Iterable", "java.util.Collection", "java.util.List", "java.util.ArrayList") to hierarchy.findSubClassesIncluding("java.util.ArrayList", allHierarchy = true).toSortedList(),
+//            arrayOf("java.lang.Iterable", "java.util.Collection", "java.util.List") to hierarchy.findSubClassesIncluding("java.util.List", allHierarchy = true).toSortedList(),
+//            arrayOf("java.lang.Iterable", "java.util.List") to hierarchy.findSubClassesIncluding("java.util.List", allHierarchy = true).toSortedList(),
+//            arrayOf("java.util.Set", "java.lang.Iterable") to hierarchy.findSubClassesIncluding("java.util.Set", allHierarchy = true).toSortedList(),
+//            arrayOf("java.lang.Iterable", "java.util.Collection", "java.util.Set", "java.util.SortedSet", "java.util.NavigableSet", "java.util.TreeSet") to hierarchy.findSubClassesIncluding("java.util.TreeSet", allHierarchy = true).toSortedList(),
+//            arrayOf("java.lang.Iterable", "java.util.Collection", "java.util.Set", "java.util.NavigableSet", "java.util.SortedSet") to hierarchy.findSubClassesIncluding("java.util.NavigableSet", allHierarchy = true).toSortedList(),
+//            arrayOf("java.lang.Iterable", "java.util.Collection", "java.util.Set", "java.util.NavigableSet") to hierarchy.findSubClassesIncluding("java.util.NavigableSet", allHierarchy = true).toSortedList(),
+//            arrayOf("java.util.Set", "java.util.List") to run {
+//                val setSubclasses = hierarchy.findSubClassesIncluding("java.util.Set", allHierarchy = true).toSet()
+//                val listSubclasses = hierarchy.findSubClassesIncluding("java.util.List", allHierarchy = true).toSet()
+//
+//                setSubclasses.filter { it in listSubclasses }
+//            }.toSortedList(),
+//        )
+//
+//        for ((group, answers) in upperBoundGroups) {
+//            val testName = group.joinToString(separator = "_", postfix = ".json")
+//            val bounds = group.map { jcClasspath.findClassOrNull(it)!!.toJvmType(jcClasspath) }
+//
+//            val query = SequentialTypeQueryWithUpperBound(bounds, answers.size, answers.map { it.toJvmType(jcClasspath) })
+//
+//            val json = gson.toJson(query)
+//
+//            Path("only_type_queries", "sequential_queries", "unbound_type_variables").let {
+//                it.toFile().mkdirs()
+//
+//                Path(it.toString(), testName).toFile().bufferedWriter().use { writer ->
+//                    writer.write(json)
+//                }
+//            }
+//        }
+//    }
+//}
+//
+//private fun Sequence<JcClassOrInterface>.toSortedList(): List<JcClassOrInterface> = sortedBy { it.name }.toList()
+//private fun Iterable<JcClassOrInterface>.toSortedList(): List<JcClassOrInterface> = sortedBy { it.name }.toList()
