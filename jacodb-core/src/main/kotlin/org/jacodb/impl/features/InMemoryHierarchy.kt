@@ -73,6 +73,8 @@ object InMemoryHierarchy : JcFeature<InMemoryHierarchyReq, ClassSource> {
 
     private val hierarchies = ConcurrentHashMap<JcDatabase, InMemoryHierarchyCache>()
 
+    fun findInMemoryHierarchy(db: JcDatabase): InMemoryHierarchyCache? = hierarchies[db]
+
     override fun onSignal(signal: JcSignal) {
         when (signal) {
             is JcSignal.BeforeIndexing -> {
