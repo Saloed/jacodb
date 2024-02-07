@@ -29,11 +29,17 @@ class Aggregate<Fact>(
     private val pathEdgesBySink: Map<Vertex<Fact>, Collection<Edge<Fact>>> =
         pathEdges.groupByTo(HashMap()) { it.to }
 
-    fun buildTraceGraph(sink: Vertex<Fact>): TraceGraph<Fact> {
+    val sinks: Set<Vertex<Fact>>
+        get() = pathEdgesBySink.keys
+
+    private inner class TraceGraphBuilder {
         val sources: MutableSet<Vertex<Fact>> = hashSetOf()
-        val edges: MutableMap<Vertex<Fact>, MutableSet<Vertex<Fact>>> =
-            hashMapOf()
-        val visited: MutableSet<Edge<Fact>> = hashSetOf()
+        val edges: MutableMap<Vertex<Fact>, MutableSet<Vertex<Fact>>> = hashMapOf()
+        val visited: MutableSet<Pair<Edge<Fact>, Vertex<Fact>>> = hashSetOf()
+
+        val sourceEdges: MutableSet<Edge<Fact>> = hashSetOf()
+        val entryPoints: MutableSet<Vertex<Fact>> = hashSetOf()
+        val visitedEntryPointEdges: MutableSet<Edge<Fact>> = hashSetOf()
 
         fun addEdge(
             from: Vertex<Fact>,
@@ -49,7 +55,7 @@ class Aggregate<Fact>(
             lastVertex: Vertex<Fact>,
             stopAtMethodStart: Boolean,
         ) {
-            if (!visited.add(edge)) {
+            if (!visited.add(edge to lastVertex)) {
                 return
             }
 
@@ -62,6 +68,7 @@ class Aggregate<Fact>(
             // FIXME: not all domains have "Zero" fact!
             if (vertex.fact == Zero) {
                 addEdge(vertex, lastVertex)
+                sourceEdges.add(edge)
                 sources.add(vertex)
                 return
             }
@@ -115,14 +122,72 @@ class Aggregate<Fact>(
                         // TODO: check
                         sources.add(vertex)
                         addEdge(edge.to, lastVertex)
+                        sourceEdges.add(edge)
                     }
                 }
             }
         }
 
-        for (edge in pathEdgesBySink[sink].orEmpty()) {
-            dfs(edge, edge.to, false)
+        fun findEntryPoints() {
+            for (sourceEdge in sourceEdges) {
+                searchForEntryPoint(sourceEdge)
+            }
         }
-        return TraceGraph(sink, sources, edges)
+
+        private fun searchForEntryPoint(initialEdge: Edge<Fact>) {
+            val unprocessedEdges = mutableListOf(initialEdge)
+            while (unprocessedEdges.isNotEmpty()) {
+                val edge = unprocessedEdges.removeLast()
+                if (!visitedEntryPointEdges.add(edge)) continue
+
+                val reasons = reasons[edge] ?: continue
+
+                var isTerminal = true
+                val entryPointVertices = mutableListOf<Vertex<Fact>>()
+                for (reason in reasons) {
+                    when (reason) {
+                        Reason.External,
+                        Reason.Initial -> {
+                            entryPointVertices.add(edge.from)
+                        }
+
+                        is Reason.CallToStart<*> -> {
+                            isTerminal = false
+                            @Suppress("UNCHECKED_CAST")
+                            unprocessedEdges.add(reason.edge as Edge<Fact>)
+                        }
+
+                        is Reason.Sequent<*> -> {
+                            isTerminal = false
+                            @Suppress("UNCHECKED_CAST")
+                            unprocessedEdges.add(reason.edge as Edge<Fact>)
+                        }
+
+                        is Reason.ThroughSummary<*> -> {
+                            isTerminal = false
+                            @Suppress("UNCHECKED_CAST")
+                            unprocessedEdges.add(reason.edge as Edge<Fact>)
+                        }
+                    }
+                }
+
+                // todo: track all initial edges?
+                if (entryPointVertices.isNotEmpty() && isTerminal) {
+                    entryPoints.addAll(entryPointVertices)
+                }
+            }
+        }
+    }
+
+    fun buildTraceGraph(sink: Vertex<Fact>): TraceGraph<Fact> {
+        val builder = TraceGraphBuilder()
+
+        for (edge in pathEdgesBySink[sink].orEmpty()) {
+            builder.dfs(edge, edge.to, false)
+        }
+
+        builder.findEntryPoints()
+
+        return TraceGraph(sink, builder.sources, builder.edges, builder.entryPoints)
     }
 }

@@ -36,16 +36,20 @@ import org.jacodb.analysis.engine.SummaryStorageImpl
 import org.jacodb.analysis.engine.UnitResolver
 import org.jacodb.analysis.engine.UnitType
 import org.jacodb.analysis.graph.reversed
+import org.jacodb.analysis.ifds2.Aggregate
 import org.jacodb.analysis.ifds2.ControlEvent
 import org.jacodb.analysis.ifds2.Manager
 import org.jacodb.analysis.ifds2.QueueEmptinessChanged
 import org.jacodb.analysis.ifds2.Runner
+import org.jacodb.analysis.ifds2.TraceGraph
+import org.jacodb.analysis.ifds2.Vertex
 import org.jacodb.analysis.ifds2.pathEdges
 import org.jacodb.api.JcMethod
 import org.jacodb.api.analysis.JcApplicationGraph
 import org.jacodb.taint.configuration.TaintMark
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 import kotlin.time.ExperimentalTime
@@ -56,6 +60,7 @@ private val logger = KotlinLogging.logger {}
 class TaintManager(
     private val graph: JcApplicationGraph,
     private val unitResolver: UnitResolver,
+    private val timeout: Duration = 100.seconds
 ) : Manager<TaintFact, TaintEvent> {
 
     private val methodsForUnit: MutableMap<UnitType, MutableSet<JcMethod>> = hashMapOf()
@@ -108,7 +113,7 @@ class TaintManager(
     }
 
     private fun addStart(method: JcMethod) {
-        logger.info { "Adding start method: $method" }
+        logger.debug { "Adding start method: $method" }
         val unit = unitResolver.resolve(method)
         methodsForUnit.getOrPut(unit) { mutableSetOf() }.add(method)
         // TODO: val isNew = (...).add(); if (isNew) { deps.forEach { addStart(it) } }
@@ -117,7 +122,7 @@ class TaintManager(
     @OptIn(ExperimentalTime::class)
     fun analyze(
         startMethods: List<JcMethod>,
-    ): List<Vulnerability> = runBlocking(Dispatchers.Default) {
+    ): List<Pair<Vulnerability, TraceGraph<TaintFact>>> = runBlocking(Dispatchers.Default) {
         val timeStart = TimeSource.Monotonic.markNow()
 
         // Add start methods:
@@ -133,6 +138,8 @@ class TaintManager(
             } methods in ${allUnits.size} units"
         }
 
+        val unitTraceGraphBuilders = ConcurrentHashMap<UnitType, List<Aggregate<TaintFact>>>()
+
         // Spawn runner jobs:
         val allJobs = allUnits.map { unit ->
             // Create the runner:
@@ -141,7 +148,13 @@ class TaintManager(
             // Start the runner:
             launch(start = CoroutineStart.LAZY) {
                 val methods = methodsForUnit[unit]!!.toList()
-                runner.run(methods)
+
+                try {
+                    runner.run(methods)
+                } finally {
+                    val traceGraph = runner.getAggregate()
+                    unitTraceGraphBuilders.merge(unit, listOf(traceGraph)) { prev, newList -> prev + newList }
+                }
             }
         }
 
@@ -179,7 +192,7 @@ class TaintManager(
         allJobs.forEach { it.start() }
 
         // Await all runners:
-        withTimeoutOrNull(100.seconds) {
+        withTimeoutOrNull(timeout) {
             allJobs.joinAll()
         } ?: run {
             allJobs.forEach { it.cancel() }
@@ -198,9 +211,28 @@ class TaintManager(
             .flatMap { method ->
                 vulnerabilitiesStorage.getCurrentFacts(method)
             }
+
+        val traceGraphBuilders = hashMapOf<Vertex<TaintFact>, Aggregate<TaintFact>>()
+        for (unitBuilders in unitTraceGraphBuilders) {
+            for (builder in unitBuilders.value) {
+                for (sink in builder.sinks) {
+                    val prev = traceGraphBuilders.putIfAbsent(sink, builder)
+                    check(prev == null) { "Multiple graph builders for sink: $sink" }
+                }
+            }
+        }
+
+        val vulnerabilitiesWithTraces = foundVulnerabilities.map {
+            it to buildTraceGraph(it, traceGraphBuilders)
+        }
+
         logger.debug { "Total found ${foundVulnerabilities.size} vulnerabilities" }
-        for (vulnerability in foundVulnerabilities) {
-            logger.debug { "$vulnerability in ${vulnerability.method}" }
+        logger.debug {
+            buildString {
+                for (vulnerability in foundVulnerabilities) {
+                    appendLine("$vulnerability in ${vulnerability.method}")
+                }
+            }
         }
         logger.info { "Total sinks: ${foundVulnerabilities.size}" }
 
@@ -250,7 +282,19 @@ class TaintManager(
                 timeStart.elapsedNow().toDouble(DurationUnit.SECONDS)
             )
         }
-        foundVulnerabilities
+        vulnerabilitiesWithTraces
+    }
+
+    private fun buildTraceGraph(
+        vulnerability: Vulnerability,
+        traceGraphBuilders: Map<Vertex<TaintFact>, Aggregate<TaintFact>>
+    ): TraceGraph<TaintFact> {
+        val builder = traceGraphBuilders[vulnerability.sink]
+            ?: error("No trace graph builder for: $vulnerability")
+
+        val traceGraph = builder.buildTraceGraph(vulnerability.sink)
+        // todo: extend?
+        return traceGraph
     }
 
     override fun handleEvent(event: TaintEvent) {

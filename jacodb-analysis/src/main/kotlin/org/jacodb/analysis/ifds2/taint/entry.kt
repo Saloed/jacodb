@@ -28,5 +28,5 @@ fun runAnalysis2(
     startMethods: List<JcMethod>,
 ): List<Vulnerability> {
     val manager = TaintManager(graph, unitResolver)
-    return manager.analyze(startMethods)
+    return manager.analyze(startMethods).map { it.first }
 }

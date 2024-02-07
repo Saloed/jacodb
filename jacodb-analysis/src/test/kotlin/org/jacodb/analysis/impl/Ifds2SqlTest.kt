@@ -135,6 +135,6 @@ class Ifds2SqlTest : BaseTest() {
         }
         val unitResolver = SingletonUnitResolver
         val manager = TaintManager(graph, unitResolver)
-        return manager.analyze(methods)
+        return manager.analyze(methods).map { it.first }
     }
 }
