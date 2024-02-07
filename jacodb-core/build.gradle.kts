@@ -52,46 +52,46 @@ dependencies {
     testFixturesImplementation(Libs.kotlinx_coroutines_core)
 }
 
-tasks {
-    register("generateSqlScheme") {
-        val location = "src/main/resources/sqlite/empty.db"
-        val url = "jdbc:sqlite:file:$location"
-        val driver = "org.sqlite.JDBC"
-        GenerationTool.generate(
-            Configuration()
-                .withJdbc(
-                    Jdbc()
-                        .withDriver(driver)
-                        .withUrl(url)
-                )
-                .withGenerator(
-                    Generator()
-                        .withName("org.jooq.codegen.KotlinGenerator")
-                        .withDatabase(Database())
-                        .withGenerate(
-                            Generate()
-                                .withDeprecationOnUnknownTypes(false)
-                        )
-                        .withTarget(
-                            Target()
-                                .withPackageName("org.jacodb.impl.storage.jooq")
-                                .withDirectory(project.file("src/main/jooq").absolutePath)
-                        )
-                )
-        )
-    }
-
-    register<JavaExec>("generateDocSvgs") {
-        dependsOn("testClasses")
-        mainClass.set("org.utbot.jcdb.impl.cfg.IRSvgGeneratorKt")
-        classpath = sourceSets.test.get().runtimeClasspath
-        val svgDocs = Paths.get(rootDir.absolutePath, "docs", "svg").toFile()
-        args = listOf(svgDocs.absolutePath)
-    }
-
-    processResources {
-        filesMatching("**/*.properties") {
-            expand("version" to project.version)
-        }
-    }
-}
+//tasks {
+//    register("generateSqlScheme") {
+//        val location = "src/main/resources/sqlite/empty.db"
+//        val url = "jdbc:sqlite:file:$location"
+//        val driver = "org.sqlite.JDBC"
+//        GenerationTool.generate(
+//            Configuration()
+//                .withJdbc(
+//                    Jdbc()
+//                        .withDriver(driver)
+//                        .withUrl(url)
+//                )
+//                .withGenerator(
+//                    Generator()
+//                        .withName("org.jooq.codegen.KotlinGenerator")
+//                        .withDatabase(Database())
+//                        .withGenerate(
+//                            Generate()
+//                                .withDeprecationOnUnknownTypes(false)
+//                        )
+//                        .withTarget(
+//                            Target()
+//                                .withPackageName("org.jacodb.impl.storage.jooq")
+//                                .withDirectory(project.file("src/main/jooq").absolutePath)
+//                        )
+//                )
+//        )
+//    }
+//
+//    register<JavaExec>("generateDocSvgs") {
+//        dependsOn("testClasses")
+//        mainClass.set("org.utbot.jcdb.impl.cfg.IRSvgGeneratorKt")
+//        classpath = sourceSets.test.get().runtimeClasspath
+//        val svgDocs = Paths.get(rootDir.absolutePath, "docs", "svg").toFile()
+//        args = listOf(svgDocs.absolutePath)
+//    }
+//
+//    processResources {
+//        filesMatching("**/*.properties") {
+//            expand("version" to project.version)
+//        }
+//    }
+//}
