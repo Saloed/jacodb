@@ -198,7 +198,7 @@ abstract class AbstractTaintForwardFunctions(
             val facts = mutableSetOf<Tainted>()
             var defaultBehavior = true
 
-            for (item in config.filterIsInstance<TaintPassThrough>()) {
+            for (item in config.filterIsInstance<TaintPassThrough>().filter { it.actionsAfter.isNotEmpty() }) {
                 if (item.condition.accept(conditionEvaluator)) {
                     defaultBehavior = false
                     for (action in item.actionsAfter) {
@@ -224,7 +224,7 @@ abstract class AbstractTaintForwardFunctions(
                     }
                 }
             }
-            for (item in config.filterIsInstance<TaintCleaner>()) {
+            for (item in config.filterIsInstance<TaintCleaner>().filter { it.actionsAfter.isNotEmpty() }) {
                 if (item.condition.accept(conditionEvaluator)) {
                     defaultBehavior = false
                     for (action in item.actionsAfter) {

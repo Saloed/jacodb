@@ -440,7 +440,7 @@ class ForwardTaintFlowFunctions(
             var defaultBehavior = true
 
             // Handle PassThrough config items:
-            for (item in config.filterIsInstance<TaintPassThrough>()) {
+            for (item in config.filterIsInstance<TaintPassThrough>().filterNot { it.actionsAfter.isEmpty() }) {
                 if (item.condition.accept(conditionEvaluator)) {
                     defaultBehavior = false
                     for (action in item.actionsAfter) {
@@ -468,7 +468,7 @@ class ForwardTaintFlowFunctions(
             }
 
             // Handle Cleaner config items:
-            for (item in config.filterIsInstance<TaintCleaner>()) {
+            for (item in config.filterIsInstance<TaintCleaner>().filterNot { it.actionsAfter.isEmpty() }) {
                 if (item.condition.accept(conditionEvaluator)) {
                     defaultBehavior = false
                     for (action in item.actionsAfter) {
