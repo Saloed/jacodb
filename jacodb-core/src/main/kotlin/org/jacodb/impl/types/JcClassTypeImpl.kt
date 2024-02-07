@@ -75,7 +75,7 @@ class JcClassTypeImpl(
         JcClassTypeLookupImpl(this)
     )
 
-    override val jcClass: JcClassOrInterface get() = classpath.findClass(name)
+    override val jcClass: JcClassOrInterface by lazy(PUBLICATION) { classpath.findClass(name) }
 
     override val access: Int
         get() = jcClass.access
@@ -154,26 +154,22 @@ class JcClassTypeImpl(
             }
         }
 
-    override val declaredMethods: List<JcTypedMethod>
-        get() {
-            return typedMethods(true, fromSuperTypes = false, jcClass.packageName)
-        }
+    override val declaredMethods: List<JcTypedMethod> by lazy(PUBLICATION) {
+        typedMethods(true, fromSuperTypes = false, jcClass.packageName)
+    }
 
-    override val methods: List<JcTypedMethod>
-        get() {
-            // let's calculate visible methods from super types
-            return typedMethods(true, fromSuperTypes = true, jcClass.packageName)
-        }
+    override val methods: List<JcTypedMethod> by lazy(PUBLICATION) {
+        // let's calculate visible methods from super types
+        typedMethods(true, fromSuperTypes = true, jcClass.packageName)
+    }
 
-    override val declaredFields: List<JcTypedField>
-        get() {
-            return typedFields(true, fromSuperTypes = false, jcClass.packageName)
-        }
+    override val declaredFields: List<JcTypedField> by lazy(PUBLICATION) {
+        typedFields(true, fromSuperTypes = false, jcClass.packageName)
+    }
 
-    override val fields: List<JcTypedField>
-        get() {
-            return typedFields(true, fromSuperTypes = true, jcClass.packageName)
-        }
+    override val fields: List<JcTypedField> by lazy(PUBLICATION) {
+        typedFields(true, fromSuperTypes = true, jcClass.packageName)
+    }
 
     override fun copyWithNullability(nullability: Boolean?) =
         JcClassTypeImpl(classpath, name, outerType, substitutor, nullability, annotations)

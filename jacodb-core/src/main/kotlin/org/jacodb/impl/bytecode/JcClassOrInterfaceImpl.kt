@@ -76,33 +76,29 @@ class JcClassOrInterfaceImpl(
     override val annotations: List<JcAnnotation>
         get() = info.annotations.map { JcAnnotationImpl(it, classpath) }
 
-    override val interfaces: List<JcClassOrInterface>
-        get() {
-            return info.interfaces.map {
-                classpath.findClass(it)
-            }
+    override val interfaces: List<JcClassOrInterface> by lazy(PUBLICATION) {
+        info.interfaces.map {
+            classpath.findClass(it)
         }
+    }
 
-    override val superClass: JcClassOrInterface?
-        get() {
-            return info.superClass?.let {
-                classpath.findClass(it)
-            }
+    override val superClass: JcClassOrInterface? by lazy(PUBLICATION) {
+        info.superClass?.let {
+            classpath.findClass(it)
         }
+    }
 
-    override val outerClass: JcClassOrInterface?
-        get() {
-            return info.outerClass?.className?.let {
-                classpath.findClass(it)
-            }
+    override val outerClass: JcClassOrInterface? by lazy(PUBLICATION) {
+        info.outerClass?.className?.let {
+            classpath.findClass(it)
         }
+    }
 
-    override val innerClasses: List<JcClassOrInterface>
-        get() {
-            return info.innerClasses.filter { it != name }.map {
-                classpath.findClass(it)
-            }
+    override val innerClasses: List<JcClassOrInterface> by lazy(PUBLICATION) {
+        info.innerClasses.filter { it != name }.map {
+            classpath.findClass(it)
         }
+    }
 
     override val access: Int
         get() = info.access
@@ -133,11 +129,10 @@ class JcClassOrInterfaceImpl(
             return null
         }
 
-    override val declaredFields: List<JcField>
-        get() {
-            val default = info.fields.map { JcFieldImpl(this, it) }
-            return default.joinFeatureFields(this, featuresChain)
-        }
+    override val declaredFields: List<JcField> by lazy(PUBLICATION) {
+        val default = info.fields.map { JcFieldImpl(this, it) }
+        default.joinFeatureFields(this, featuresChain)
+    }
 
     override val declaredMethods: List<JcMethod> by lazy(PUBLICATION) {
         val default = info.methods.map { toJcMethod(it, featuresChain) }

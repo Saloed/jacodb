@@ -52,6 +52,7 @@ import org.jacodb.impl.types.JcClassTypeImpl
 import org.jacodb.impl.types.substition.JcSubstitutorImpl
 import org.jacodb.impl.vfs.ClasspathVfs
 import org.jacodb.impl.vfs.GlobalClassesVfs
+import kotlin.LazyThreadSafetyMode.PUBLICATION
 
 class JcClasspathImpl(
     private val locationsRegistrySnapshot: LocationsRegistrySnapshot,
@@ -82,7 +83,15 @@ class JcClasspathImpl(
         }
     }
 
+    private val objectClass: JcClassOrInterface? by lazy(PUBLICATION) {
+        featuresChain.call<JcClasspathExtFeature, JcResolvedClassResult> {
+            it.tryFindClass(this, OBJECT_NAME)
+        }?.clazz
+    }
+
     override fun findClassOrNull(name: String): JcClassOrInterface? {
+        if (OBJECT_NAME == name) return objectClass
+
         return featuresChain.call<JcClasspathExtFeature, JcResolvedClassResult> {
             it.tryFindClass(this, name)
         }?.clazz
@@ -111,7 +120,15 @@ class JcClasspathImpl(
         return JcClassOrInterfaceImpl(this, source, featuresChain)
     }
 
+    private val objectType: JcType? by lazy(PUBLICATION) {
+        featuresChain.call<JcClasspathExtFeature, JcResolvedTypeResult> {
+            it.tryFindType(this, OBJECT_NAME)
+        }?.type
+    }
+
     override fun findTypeOrNull(name: String): JcType? {
+        if (OBJECT_NAME == name) return objectType
+
         return featuresChain.call<JcClasspathExtFeature, JcResolvedTypeResult> {
             it.tryFindType(this, name)
         }?.type
@@ -200,6 +217,11 @@ class JcClasspathImpl(
             return JcFeatureEventImpl(this, result)
         }
 
+    }
+
+    companion object {
+        @JvmStatic
+        private val OBJECT_NAME = Any::class.java.name
     }
 
 }
